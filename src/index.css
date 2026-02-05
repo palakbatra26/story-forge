@@ -1,0 +1,332 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Editorial Blog Design System - Warm, Readable, Elegant */
+
+@layer base {
+  :root {
+    /* Warm cream and charcoal palette */
+    --background: 40 33% 98%;
+    --foreground: 220 15% 15%;
+
+    --card: 40 30% 97%;
+    --card-foreground: 220 15% 15%;
+
+    --popover: 40 30% 99%;
+    --popover-foreground: 220 15% 15%;
+
+    /* Deep teal accent */
+    --primary: 175 50% 28%;
+    --primary-foreground: 40 30% 98%;
+
+    /* Warm secondary */
+    --secondary: 35 30% 92%;
+    --secondary-foreground: 220 15% 20%;
+
+    --muted: 35 20% 94%;
+    --muted-foreground: 220 10% 45%;
+
+    /* Accent - warm gold */
+    --accent: 38 70% 50%;
+    --accent-foreground: 220 15% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 20% 88%;
+    --input: 35 20% 88%;
+    --ring: 175 50% 28%;
+
+    --radius: 0.625rem;
+
+    /* Custom tokens */
+    --success: 152 60% 40%;
+    --warning: 38 92% 50%;
+    --info: 200 80% 45%;
+
+    /* Typography */
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(220 15% 15% / 0.03);
+    --shadow-md: 0 4px 6px -1px hsl(220 15% 15% / 0.05), 0 2px 4px -2px hsl(220 15% 15% / 0.05);
+    --shadow-lg: 0 10px 15px -3px hsl(220 15% 15% / 0.06), 0 4px 6px -4px hsl(220 15% 15% / 0.06);
+    --shadow-xl: 0 20px 25px -5px hsl(220 15% 15% / 0.08), 0 8px 10px -6px hsl(220 15% 15% / 0.08);
+    --shadow-card: 0 2px 8px -2px hsl(220 15% 15% / 0.08);
+    --shadow-hover: 0 12px 24px -8px hsl(175 50% 28% / 0.15);
+
+    /* Sidebar */
+    --sidebar-background: 40 25% 96%;
+    --sidebar-foreground: 220 15% 20%;
+    --sidebar-primary: 175 50% 28%;
+    --sidebar-primary-foreground: 40 30% 98%;
+    --sidebar-accent: 35 25% 92%;
+    --sidebar-accent-foreground: 220 15% 20%;
+    --sidebar-border: 35 20% 88%;
+    --sidebar-ring: 175 50% 28%;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 40 20% 95%;
+
+    --card: 220 18% 13%;
+    --card-foreground: 40 20% 95%;
+
+    --popover: 220 18% 12%;
+    --popover-foreground: 40 20% 95%;
+
+    --primary: 175 55% 45%;
+    --primary-foreground: 220 20% 8%;
+
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 40 20% 90%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 38 75% 55%;
+    --accent-foreground: 220 20% 8%;
+
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 175 55% 45%;
+
+    --sidebar-background: 220 18% 12%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 175 55% 45%;
+    --sidebar-primary-foreground: 220 20% 8%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 175 55% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    @apply tracking-tight;
+  }
+}
+
+@layer components {
+  /* Editorial heading styles */
+  .heading-display {
+    font-family: var(--font-serif);
+    @apply text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight leading-tight;
+  }
+
+  .heading-title {
+    font-family: var(--font-serif);
+    @apply text-2xl md:text-3xl font-semibold tracking-tight;
+  }
+
+  .heading-subtitle {
+    font-family: var(--font-serif);
+    @apply text-xl md:text-2xl font-medium;
+  }
+
+  /* Body text styles */
+  .prose-body {
+    @apply text-base md:text-lg leading-relaxed text-foreground/90;
+  }
+
+  .prose-small {
+    @apply text-sm leading-relaxed text-muted-foreground;
+  }
+
+  /* Card variants */
+  .card-editorial {
+    @apply bg-card rounded-lg border border-border/50 transition-all duration-300;
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-editorial:hover {
+    box-shadow: var(--shadow-hover);
+    @apply border-primary/20 -translate-y-0.5;
+  }
+
+  .card-featured {
+    @apply bg-gradient-to-br from-card to-secondary/30 rounded-xl border border-border/30;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Button variants */
+  .btn-editorial {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200;
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+
+  .btn-editorial-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200;
+    @apply border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors;
+    @apply text-foreground/80 hover:text-foreground hover:bg-secondary;
+  }
+
+  /* Tag/Badge styles */
+  .tag {
+    @apply inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full transition-colors;
+    @apply bg-secondary text-secondary-foreground hover:bg-primary/10 hover:text-primary;
+  }
+
+  .tag-primary {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .tag-accent {
+    @apply bg-accent/15 text-accent-foreground;
+  }
+
+  /* Author avatar */
+  .avatar-ring {
+    @apply ring-2 ring-primary/20 ring-offset-2 ring-offset-background;
+  }
+
+  /* Reading progress bar */
+  .reading-progress {
+    @apply fixed top-0 left-0 h-0.5 bg-primary z-50 transition-all;
+  }
+
+  /* Animated underline */
+  .link-underline {
+    @apply relative;
+  }
+
+  .link-underline::after {
+    content: '';
+    @apply absolute left-0 bottom-0 w-0 h-0.5 bg-primary transition-all duration-300;
+  }
+
+  .link-underline:hover::after {
+    @apply w-full;
+  }
+
+  /* Section divider */
+  .divider-editorial {
+    @apply w-16 h-0.5 bg-primary/30 mx-auto my-8;
+  }
+
+  /* Featured post gradient overlay */
+  .gradient-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/40 to-transparent;
+  }
+
+  /* Skeleton loading */
+  .skeleton-editorial {
+    @apply animate-pulse bg-muted rounded;
+  }
+
+  /* TipTap editor styles */
+  .tiptap-editor {
+    @apply min-h-[320px] rounded-lg border border-border/70 bg-background px-4 py-3 text-sm leading-relaxed;
+  }
+
+  .tiptap-editor .ProseMirror {
+    @apply outline-none;
+  }
+
+  .tiptap-editor .ProseMirror p {
+    @apply mb-3 text-foreground/90;
+  }
+
+  .tiptap-editor .ProseMirror h2 {
+    @apply mt-6 text-xl font-semibold;
+  }
+
+  .tiptap-editor .ProseMirror h3 {
+    @apply mt-4 text-lg font-semibold;
+  }
+
+  .tiptap-editor .ProseMirror ul,
+  .tiptap-editor .ProseMirror ol {
+    @apply ml-6 mb-3 list-disc;
+  }
+
+  .tiptap-editor .ProseMirror ol {
+    @apply list-decimal;
+  }
+
+  .tiptap-editor .ProseMirror a {
+    @apply text-primary underline underline-offset-4;
+  }
+
+  .tiptap-editor .ProseMirror hr {
+    @apply my-4 border-border/60;
+  }
+}
+
+@layer utilities {
+  /* Custom animations */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from { 
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to { 
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Stagger animation delays */
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+  .delay-500 { animation-delay: 500ms; }
+}
