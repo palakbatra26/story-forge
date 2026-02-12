@@ -1,0 +1,11 @@
+Yeah
+
+# Conflicts:
+#	.gitignore
+#	bun.lockb
+#	package-lock.json
+#	package.json
+#	src/App.tsx
+#	src/components/layout/Header.tsx
+#	src/index.css
+#	src/main.tsx
