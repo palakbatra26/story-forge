@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Calendar, Clock, Heart, MessageCircle, Bookmark } from "lucide-react";
+import { Calendar, Clock, Heart, MessageCircle, Bookmark, BadgeCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +12,8 @@ interface PostCardProps {
     name: string;
     avatar?: string;
     username: string;
+    clerkId?: string;
+    isVerified?: boolean;
   };
   category: string;
   publishedAt: string;
@@ -34,6 +36,8 @@ const PostCard = ({
   comments,
   variant = "default",
 }: PostCardProps) => {
+  const authorLink = author.clerkId ? `/profile/${author.clerkId}` : `/author/${author.username}`;
+
   if (variant === "featured") {
     return (
       <article className="group relative overflow-hidden rounded-2xl bg-card">
@@ -68,6 +72,7 @@ const PostCard = ({
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-white/90 text-sm font-medium">{author.name}</span>
+                  {author.isVerified && <BadgeCheck className="h-4 w-4 text-sky-300" />}
                 </div>
                 <span className="text-white/60 text-sm">·</span>
                 <div className="flex items-center gap-1 text-white/70 text-sm">
@@ -97,6 +102,7 @@ const PostCard = ({
           </h3>
           <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
             <span>{author.name}</span>
+            {author.isVerified && <BadgeCheck className="h-3.5 w-3.5 text-sky-500" />}
             <span>·</span>
             <span>{readTime} min</span>
           </div>
@@ -148,7 +154,7 @@ const PostCard = ({
         </p>
         
         <div className="flex items-center justify-between pt-4 border-t border-border/50">
-          <Link to={`/author/${author.username}`} className="flex items-center gap-2 group/author">
+          <Link to={authorLink} className="flex items-center gap-2 group/author">
             <Avatar className="h-7 w-7">
               <AvatarImage src={author.avatar} alt={author.name} />
               <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
@@ -158,6 +164,7 @@ const PostCard = ({
             <span className="text-sm font-medium group-hover/author:text-primary transition-colors">
               {author.name}
             </span>
+            {author.isVerified && <BadgeCheck className="h-4 w-4 text-sky-500" />}
           </Link>
           
           <div className="flex items-center gap-3">

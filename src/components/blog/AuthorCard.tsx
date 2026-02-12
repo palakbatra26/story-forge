@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Users } from "lucide-react";
+import { BadgeCheck, Users } from "lucide-react";
 
 interface AuthorCardProps {
   username: string;
@@ -10,6 +10,7 @@ interface AuthorCardProps {
   bio?: string;
   followers: number;
   postsCount: number;
+  isVerified?: boolean;
   variant?: "default" | "compact" | "inline";
 }
 
@@ -20,6 +21,7 @@ const AuthorCard = ({
   bio,
   followers,
   postsCount,
+  isVerified,
   variant = "default",
 }: AuthorCardProps) => {
   if (variant === "inline") {
@@ -32,9 +34,12 @@ const AuthorCard = ({
           </AvatarFallback>
         </Avatar>
         <div>
-          <p className="text-sm font-medium group-hover:text-primary transition-colors">
-            {name}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium group-hover:text-primary transition-colors">
+              {name}
+            </p>
+            {isVerified && <BadgeCheck className="h-4 w-4 text-sky-500" />}
+          </div>
           <p className="text-xs text-muted-foreground">@{username}</p>
         </div>
       </Link>
@@ -52,9 +57,12 @@ const AuthorCard = ({
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium group-hover:text-primary transition-colors">
-              {name}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-medium group-hover:text-primary transition-colors">
+                {name}
+              </p>
+              {isVerified && <BadgeCheck className="h-4 w-4 text-sky-500" />}
+            </div>
             <p className="text-xs text-muted-foreground">{postsCount} posts</p>
           </div>
         </Link>
@@ -74,9 +82,12 @@ const AuthorCard = ({
             {name.slice(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <h3 className="font-serif text-lg font-semibold mb-1 group-hover:text-primary transition-colors">
-          {name}
-        </h3>
+        <div className="flex items-center justify-center gap-1.5 mb-1">
+          <h3 className="font-serif text-lg font-semibold group-hover:text-primary transition-colors">
+            {name}
+          </h3>
+          {isVerified && <BadgeCheck className="h-4 w-4 text-sky-500" />}
+        </div>
         <p className="text-sm text-muted-foreground mb-3">@{username}</p>
       </Link>
       

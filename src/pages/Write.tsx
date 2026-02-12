@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Calendar,
@@ -25,10 +26,18 @@ import {
 import { useAuth, useUser } from "@clerk/clerk-react";
 import { toast } from "sonner";
 
-type WorkflowStatus = "Draft" | "Submitted" | "Under Review" | "Approved" | "Published" | "Archived";
+type WorkflowStatus =
+  | "Draft"
+  | "Scheduled"
+  | "Submitted"
+  | "Under Review"
+  | "Approved"
+  | "Published"
+  | "Archived";
 
 const workflowSteps: WorkflowStatus[] = [
   "Draft",
+  "Scheduled",
   "Submitted",
   "Under Review",
   "Approved",
@@ -44,6 +53,13 @@ const editorExtensions = [
 ];
 
 const categories = ["AI/ML", "Cyber", "Web", "Mobile", "Data", "Cloud", "DevOps"];
+const languageOptions = [
+  { value: "en", label: "English" },
+  { value: "hi", label: "Hindi" },
+  { value: "pa", label: "Punjabi" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+];
 
 const Write = () => {
   const { isSignedIn } = useAuth();
@@ -73,16 +89,50 @@ const Write = () => {
   );
   const [slug, setSlug] = useState("writing-workflow" );
   const [canonicalUrl, setCanonicalUrl] = useState("https://bloghub.com/writing-workflow");
+  const [originalLanguage, setOriginalLanguage] = useState("en");
+  const [translationLanguage, setTranslationLanguage] = useState("hi");
+  const [translatedTitle, setTranslatedTitle] = useState("");
+  const [translatedDescription, setTranslatedDescription] = useState("");
+  const [translatedContent, setTranslatedContent] = useState("");
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(new Date());
   const [wordCount, setWordCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [lastPostId, setLastPostId] = useState<string | null>(null);
+
+  const draftStorageKey = user ? `write-draft-${user.id}` : "write-draft-guest";
 
   useEffect(() => {
     if (user) {
       setBloggerName(user.fullName || user.username || "");
     }
   }, [user]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(draftStorageKey);
+    if (!raw) return;
+
+    try {
+      const draft = JSON.parse(raw);
+      setTitle(draft.title || "");
+      setSubtitle(draft.subtitle || "");
+      setStatus(draft.status || "Draft");
+      setCategory(draft.category || categories[0]);
+      setTags(draft.tags || "");
+      setTimeline(draft.timeline || "");
+      setDescription(draft.description || "");
+      setCoverImageUrl(draft.coverImageUrl || "");
+      setScheduledAt(draft.scheduledAt || "");
+      setOriginalLanguage(draft.originalLanguage || "en");
+      setTranslationLanguage(draft.translationLanguage || "hi");
+      setTranslatedTitle(draft.translatedTitle || "");
+      setTranslatedDescription(draft.translatedDescription || "");
+      setTranslatedContent(draft.translatedContent || "");
+      setAudioEnabled(draft.audioEnabled !== false);
+    } catch {
+      // ignore malformed local draft
+    }
+  }, [draftStorageKey]);
 
   const editor = useEditor({
     extensions: editorExtensions,
@@ -116,6 +166,52 @@ const Write = () => {
     };
   }, [editor]);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      localStorage.setItem(
+        draftStorageKey,
+        JSON.stringify({
+          title,
+          subtitle,
+          status,
+          category,
+          tags,
+          timeline,
+          description,
+          coverImageUrl,
+          scheduledAt,
+          originalLanguage,
+          translationLanguage,
+          translatedTitle,
+          translatedDescription,
+          translatedContent,
+          audioEnabled,
+          content: editor?.getHTML() || "",
+        })
+      );
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    draftStorageKey,
+    title,
+    subtitle,
+    status,
+    category,
+    tags,
+    timeline,
+    description,
+    coverImageUrl,
+    scheduledAt,
+    originalLanguage,
+    translationLanguage,
+    translatedTitle,
+    translatedDescription,
+    translatedContent,
+    audioEnabled,
+    editor,
+  ]);
+
   const readingTime = useMemo(() => {
     return Math.max(1, Math.ceil(wordCount / 200));
   }, [wordCount]);
@@ -138,15 +234,29 @@ const Write = () => {
 
     setSaving(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/posts`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
+      await fetch(`${baseUrl}/api/users/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clerkId: user.id,
           name: user.fullName || user.username || "Unknown",
           email: user.primaryEmailAddress?.emailAddress || "",
+          username: user.username || "",
+          avatarUrl: user.imageUrl || "",
+        }),
+      });
+
+      const response = await fetch(`${baseUrl}/api/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clerkId: user.id,
+          name: bloggerName.trim() || user.fullName || user.username || "Unknown",
+          email: user.primaryEmailAddress?.emailAddress || "",
           title,
-          status: "Published",
+          status,
           category,
           tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
           timeline,
@@ -154,18 +264,39 @@ const Write = () => {
           coverImageUrl,
           coverImageData,
           content: editor?.getHTML() || "",
+          scheduledAt: status === "Scheduled" ? scheduledAt : null,
+          originalLanguage,
+          translations:
+            translatedTitle.trim() || translatedDescription.trim() || translatedContent.trim()
+              ? [
+                  {
+                    language: translationLanguage,
+                    title: translatedTitle.trim(),
+                    description: translatedDescription.trim(),
+                    content: translatedContent.trim(),
+                  },
+                ]
+              : [],
+          audioEnabled,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save post");
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Failed to save post");
       }
 
       const data = await response.json();
       setLastPostId(data.id);
+      localStorage.removeItem(draftStorageKey);
       toast.success("Post uploaded successfully!");
-    } catch (error) {
-      toast.error("Unable to save post. Please try again.");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unable to save post. Please try again.";
+      if (message.includes("Failed to fetch")) {
+        toast.error("Backend server is not reachable. Start API server first.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setSaving(false);
     }
@@ -277,6 +408,17 @@ const Write = () => {
                           </SelectContent>
                         </Select>
                       </div>
+                      {status === "Scheduled" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="scheduledAt">Schedule for</Label>
+                          <Input
+                            id="scheduledAt"
+                            type="datetime-local"
+                            value={scheduledAt}
+                            onChange={(event) => setScheduledAt(event.target.value)}
+                          />
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label htmlFor="blogger">Blogger name</Label>
                         <Input
@@ -309,7 +451,72 @@ const Write = () => {
                           onChange={(event) => setTimeline(event.target.value)}
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label>Original language</Label>
+                        <Select value={originalLanguage} onValueChange={setOriginalLanguage}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select language" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {languageOptions.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center justify-between">
+                          <span>Enable audio mode (Text-to-Speech)</span>
+                          <Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} />
+                        </Label>
+                      </div>
                     </div>
+
+                    <Card className="card-editorial">
+                      <CardHeader>
+                        <CardTitle>Multi-language translation (optional)</CardTitle>
+                        <CardDescription>
+                          Add one translated version so readers can switch language on post page.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="space-y-2">
+                          <Label>Translation language</Label>
+                          <Select value={translationLanguage} onValueChange={setTranslationLanguage}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select translation language" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {languageOptions
+                                .filter((item) => item.value !== originalLanguage)
+                                .map((item) => (
+                                  <SelectItem key={item.value} value={item.value}>
+                                    {item.label}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Input
+                          placeholder="Translated title"
+                          value={translatedTitle}
+                          onChange={(event) => setTranslatedTitle(event.target.value)}
+                        />
+                        <Textarea
+                          placeholder="Translated description"
+                          value={translatedDescription}
+                          onChange={(event) => setTranslatedDescription(event.target.value)}
+                        />
+                        <Textarea
+                          placeholder="Translated content (HTML/text)"
+                          className="min-h-[140px]"
+                          value={translatedContent}
+                          onChange={(event) => setTranslatedContent(event.target.value)}
+                        />
+                      </CardContent>
+                    </Card>
                     <Card className="card-editorial">
                       <CardHeader>
                         <CardTitle>Blog description</CardTitle>

@@ -1,51 +1,109 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import AuthorCard from "@/components/blog/AuthorCard";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import { toast } from "sonner";
 
-const featuredAuthors = [
-  {
-    username: "sarahchen",
-    name: "Sarah Chen",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop",
-    bio: "Tech lead & writer. Exploring the intersection of code and creativity.",
-    followers: 12400,
-    postsCount: 48,
-  },
-  {
-    username: "mtorres",
-    name: "Michael Torres",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
-    bio: "Design systems advocate. Making the web beautiful, one component at a time.",
-    followers: 8900,
-    postsCount: 35,
-  },
-  {
-    username: "emmaw",
-    name: "Emma Wilson",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop",
-    bio: "Product designer turned writer. Sharing lessons from 10 years in tech.",
-    followers: 15200,
-    postsCount: 62,
-  },
-  {
-    username: "davidk",
-    name: "David Kim",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop",
-    bio: "Engineering manager at Scale. Writing about leadership and systems thinking.",
-    followers: 7600,
-    postsCount: 29,
-  },
-];
+type SuggestedAuthor = {
+  clerkId: string;
+  username: string;
+  name: string;
+  avatarUrl: string;
+  bio: string;
+  followersCount: number;
+  postsCount: number;
+  isFollowing: boolean;
+  isVerified?: boolean;
+};
 
 const AuthorsSpotlight = () => {
+  const { isSignedIn } = useAuth();
+  const { user } = useUser();
+  const [authors, setAuthors] = useState<SuggestedAuthor[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadTopAuthors = async () => {
+      if (!isSignedIn || !user) {
+        setAuthors([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL;
+        const response = await fetch(
+          `${baseUrl}/api/users/directory?viewerClerkId=${encodeURIComponent(user.id)}&activeOnly=true`
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch top authors");
+        }
+        const data = await response.json();
+        const ranked = (data || [])
+          .sort(
+            (a: SuggestedAuthor, b: SuggestedAuthor) =>
+              b.followersCount - a.followersCount || b.postsCount - a.postsCount
+          )
+          .slice(0, 8);
+        setAuthors(ranked);
+      } catch {
+        setAuthors([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTopAuthors();
+  }, [isSignedIn, user]);
+
+  const handleFollow = async (targetClerkId: string) => {
+    if (!isSignedIn || !user) {
+      toast.error("Please sign in first.");
+      return;
+    }
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const response = await fetch(`${baseUrl}/api/users/${targetClerkId}/follow`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          viewerClerkId: user.id,
+          viewerName: user.fullName || user.username || "",
+          viewerEmail: user.primaryEmailAddress?.emailAddress || "",
+          viewerUsername: user.username || "",
+          viewerAvatarUrl: user.imageUrl || "",
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to follow");
+
+      const data = await response.json();
+      setAuthors((prev) =>
+        prev.map((author) =>
+          author.clerkId === targetClerkId
+            ? {
+                ...author,
+                isFollowing: data.isFollowing,
+                followersCount: data.followersCount,
+              }
+            : author
+        )
+      );
+      toast.success(data.isFollowing ? "Followed successfully." : "Unfollowed successfully.");
+    } catch {
+      toast.error("Unable to follow user.");
+    }
+  };
+
   return (
     <section className="py-12 md:py-16">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="heading-title mb-2">Writers to Follow</h2>
+            <h2 className="heading-title mb-2">Top Authors</h2>
             <p className="text-muted-foreground">
-              Discover voices that inspire and inform
+              Dynamic ranking based on followers and activity
             </p>
           </div>
           <Link
@@ -57,17 +115,33 @@ const AuthorsSpotlight = () => {
           </Link>
         </div>
 
+        {loading ? (
+          <p className="text-muted-foreground">Loading top authors...</p>
+        ) : authors.length === 0 ? (
+          <p className="text-muted-foreground">No authors to show right now.</p>
+        ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {featuredAuthors.map((author, index) => (
+          {authors.map((author, index) => (
             <div
-              key={author.username}
+              key={author.clerkId}
               className="animate-slide-up"
               style={{ animationDelay: `${index * 100}ms` }}
             >
-              <AuthorCard {...author} />
+              <AuthorCard
+                username={author.username || author.name.toLowerCase().replace(/\s+/g, "")}
+                name={author.name}
+                avatar={author.avatarUrl}
+                bio={author.bio}
+                followers={author.followersCount}
+                postsCount={author.postsCount}
+                isVerified={author.isVerified}
+                profileHref={`/profile/${author.clerkId}`}
+                onFollow={() => handleFollow(author.clerkId)}
+              />
             </div>
           ))}
         </div>
+        )}
 
         <div className="mt-8 text-center md:hidden">
           <Link

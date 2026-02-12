@@ -1,75 +1,80 @@
+import { useEffect, useMemo, useState } from "react";
+import { useUser } from "@clerk/clerk-react";
 import PostCard from "@/components/blog/PostCard";
 
-// Mock data - will be replaced with real data from database
-const featuredPost = {
-  id: "1",
-  title: "The Future of Web Development: Trends to Watch in 2024",
-  excerpt: "Exploring the emerging technologies and methodologies that are reshaping how we build for the web. From AI-assisted coding to edge computing, here's what every developer should know.",
-  coverImage: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=1200&h=600&fit=crop",
+type HomePost = {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  coverImageUrl: string;
+  category: string;
+  createdAt: string;
+  likes: number;
+  commentsCount: number;
   author: {
-    name: "Sarah Chen",
-    username: "sarahchen",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
-  },
-  category: "Technology",
-  publishedAt: "Jan 15, 2024",
-  readTime: 8,
-  likes: 342,
-  comments: 45,
+    clerkId: string;
+    name: string;
+    username: string;
+    avatarUrl: string;
+    isVerified?: boolean;
+  } | null;
 };
 
-const recentPosts = [
-  {
-    id: "2",
-    title: "Mastering the Art of Technical Writing",
-    excerpt: "Clear documentation can make or break a project. Learn the principles that separate good technical writing from great.",
-    coverImage: "https://images.unsplash.com/photo-1455390582262-044cdead277a?w=600&h=400&fit=crop",
-    author: {
-      name: "Michael Torres",
-      username: "mtorres",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-    },
-    category: "Writing",
-    publishedAt: "Jan 14, 2024",
-    readTime: 6,
-    likes: 189,
-    comments: 23,
-  },
-  {
-    id: "3",
-    title: "Building Inclusive Design Systems",
-    excerpt: "How to create design systems that work for everyone, from accessibility considerations to cultural sensitivity.",
-    coverImage: "https://images.unsplash.com/photo-1559028012-481c04fa702d?w=600&h=400&fit=crop",
-    author: {
-      name: "Emma Wilson",
-      username: "emmaw",
-      avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
-    },
-    category: "Design",
-    publishedAt: "Jan 13, 2024",
-    readTime: 10,
-    likes: 256,
-    comments: 34,
-  },
-  {
-    id: "4",
-    title: "The Psychology Behind Great User Experiences",
-    excerpt: "Understanding cognitive biases and mental models to create products that feel intuitive and delightful.",
-    coverImage: "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&h=400&fit=crop",
-    author: {
-      name: "David Kim",
-      username: "davidk",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop",
-    },
-    category: "UX",
-    publishedAt: "Jan 12, 2024",
-    readTime: 7,
-    likes: 198,
-    comments: 28,
-  },
-];
-
 const FeaturedPosts = () => {
+  const { user } = useUser();
+  const [posts, setPosts] = useState<HomePost[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadPosts = async () => {
+      setLoading(true);
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL;
+        const query = user?.id ? `?viewerClerkId=${encodeURIComponent(user.id)}` : "";
+        const response = await fetch(`${baseUrl}/api/posts${query}`);
+        if (!response.ok) throw new Error("Failed to fetch posts");
+
+        const data = await response.json();
+        setPosts(data || []);
+      } catch {
+        setPosts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPosts();
+  }, [user?.id]);
+
+  const recentPosts = useMemo(() => posts.slice(0, 4), [posts]);
+  const featuredPost = recentPosts[0];
+  const secondaryPosts = recentPosts.slice(1);
+
+  const toCardPost = (post: HomePost) => {
+    const words = (post.content || post.description || "").trim().split(/\s+/).filter(Boolean).length;
+    const readTime = Math.max(1, Math.ceil(words / 180));
+
+    return {
+      id: post.id,
+      title: post.title,
+      excerpt: post.description || post.content?.slice(0, 140) || "",
+      coverImage: post.coverImageUrl,
+      author: {
+        name: post.author?.name || "Unknown",
+        username: post.author?.username || "user",
+        avatar: post.author?.avatarUrl || "",
+        clerkId: post.author?.clerkId,
+        isVerified: !!post.author?.isVerified,
+      },
+      category: post.category || "General",
+      publishedAt: new Date(post.createdAt).toLocaleDateString(),
+      readTime,
+      likes: post.likes || 0,
+      comments: post.commentsCount || 0,
+    };
+  };
+
   return (
     <section className="py-12 md:py-16">
       <div className="container mx-auto px-4">
@@ -77,27 +82,33 @@ const FeaturedPosts = () => {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="heading-title mb-2">Featured Stories</h2>
-            <p className="text-muted-foreground">Curated reads from our community</p>
+            <p className="text-muted-foreground">Latest uploads from your community</p>
           </div>
         </div>
 
-        {/* Featured post */}
-        <div className="mb-8">
-          <PostCard {...featuredPost} variant="featured" />
-        </div>
-
-        {/* Recent posts grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recentPosts.map((post, index) => (
-            <div 
-              key={post.id} 
-              className="animate-slide-up"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <PostCard {...post} />
+        {loading ? (
+          <p className="text-muted-foreground">Loading featured stories...</p>
+        ) : !featuredPost ? (
+          <p className="text-muted-foreground">No stories uploaded yet.</p>
+        ) : (
+          <>
+            <div className="mb-8">
+              <PostCard {...toCardPost(featuredPost)} variant="featured" />
             </div>
-          ))}
-        </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {secondaryPosts.map((post, index) => (
+                <div
+                  key={post.id}
+                  className="animate-slide-up"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <PostCard {...toCardPost(post)} />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </section>
   );
