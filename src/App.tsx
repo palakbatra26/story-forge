@@ -10,6 +10,9 @@ import Admin from "./pages/Admin";
 import SignInPage from "./pages/SignIn";
 import SignUpPage from "./pages/SignUp";
 import Explore from "./pages/Explore";
+import Authors from "./pages/Authors";
+import PostDetails from "./pages/PostDetails";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +26,10 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/explore" element={<Explore />} />
+          <Route path="/authors" element={<Authors />} />
+          <Route path="/post/:postId" element={<PostDetails />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:clerkId" element={<Profile />} />
           <Route path="/write" element={<Write />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/admin" element={<Admin />} />

@@ -22,6 +22,21 @@ type ProfileData = {
   isVerified?: boolean;
   isFollowing: boolean;
   canEdit: boolean;
+  readingGoals?: {
+    dailyMinutes: number;
+    weeklyPosts: number;
+  };
+  readingStats?: {
+    currentStreak: number;
+    longestStreak: number;
+    totalReadPosts: number;
+    weeklyReadPosts: number;
+  };
+  badges?: Array<{
+    key: string;
+    label: string;
+    earnedAt: string;
+  }>;
 };
 
 type ProfilePost = {
@@ -65,6 +80,8 @@ const Profile = () => {
   const [connectionsType, setConnectionsType] = useState<"followers" | "following">("followers");
   const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [connections, setConnections] = useState<ConnectionUser[]>([]);
+  const [dailyGoalMinutes, setDailyGoalMinutes] = useState(15);
+  const [weeklyGoalPosts, setWeeklyGoalPosts] = useState(5);
 
   const loadProfile = async () => {
     if (!targetClerkId) {
@@ -127,6 +144,8 @@ const Profile = () => {
       setEditUsername(profileData.username || "");
       setEditBio(profileData.bio || "");
       setEditAvatarUrl(profileData.avatarUrl || "");
+      setDailyGoalMinutes(profileData?.readingGoals?.dailyMinutes || 15);
+      setWeeklyGoalPosts(profileData?.readingGoals?.weeklyPosts || 5);
     } catch (error) {
       setProfile(null);
       setPosts([]);
@@ -136,6 +155,37 @@ const Profile = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveReadingGoals = async () => {
+    if (!profile?.canEdit || !user) return;
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const response = await fetch(`${baseUrl}/api/users/${profile.clerkId}/reading-goals`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          viewerClerkId: user.id,
+          dailyMinutes: dailyGoalMinutes,
+          weeklyPosts: weeklyGoalPosts,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Failed to update goals");
+
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              readingGoals: data.readingGoals || prev.readingGoals,
+              readingStats: data.readingStats || prev.readingStats,
+            }
+          : prev
+      );
+      toast.success("Reading goals updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update reading goals.");
     }
   };
 
@@ -347,6 +397,15 @@ const Profile = () => {
                         </div>
                         <p className="text-muted-foreground">@{profile.username || "user"}</p>
                         <p className="text-sm mt-2">{profile.bio || "No bio yet."}</p>
+                        {profile.badges && profile.badges.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {profile.badges.map((badge) => (
+                              <span key={badge.key} className="rounded-full border px-2 py-1 text-xs bg-secondary">
+                                🏅 {badge.label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -418,6 +477,40 @@ const Profile = () => {
                     <Button onClick={handleSaveProfile} disabled={saving}>
                       {saving ? "Saving..." : "Save Profile"}
                     </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {profile.canEdit && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Reading Goals & Progress</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={dailyGoalMinutes}
+                        onChange={(event) => setDailyGoalMinutes(Number(event.target.value || 1))}
+                        placeholder="Daily reading minutes"
+                      />
+                      <Input
+                        type="number"
+                        min={1}
+                        value={weeklyGoalPosts}
+                        onChange={(event) => setWeeklyGoalPosts(Number(event.target.value || 1))}
+                        placeholder="Weekly posts target"
+                      />
+                    </div>
+                    <Button variant="outline" onClick={handleSaveReadingGoals}>Save Goals</Button>
+
+                    <div className="rounded-md border p-3 text-sm">
+                      <p>🔥 Current streak: <b>{profile.readingStats?.currentStreak || 0}</b> day(s)</p>
+                      <p>🏆 Longest streak: <b>{profile.readingStats?.longestStreak || 0}</b> day(s)</p>
+                      <p>📚 Total posts read: <b>{profile.readingStats?.totalReadPosts || 0}</b></p>
+                      <p>🗓 Weekly posts read: <b>{profile.readingStats?.weeklyReadPosts || 0}</b></p>
+                    </div>
                   </CardContent>
                 </Card>
               )}

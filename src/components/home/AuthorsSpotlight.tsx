@@ -136,6 +136,7 @@ const AuthorsSpotlight = () => {
                 postsCount={author.postsCount}
                 isVerified={author.isVerified}
                 profileHref={`/profile/${author.clerkId}`}
+                isFollowing={author.isFollowing}
                 onFollow={() => handleFollow(author.clerkId)}
               />
             </div>

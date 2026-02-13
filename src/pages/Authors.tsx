@@ -53,8 +53,8 @@ const Authors = () => {
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL;
         const query = user?.id
-          ? `?viewerClerkId=${encodeURIComponent(user.id)}&activeOnly=true`
-          : "?activeOnly=true";
+          ? `?viewerClerkId=${encodeURIComponent(user.id)}`
+          : "";
         const response = await fetch(`${baseUrl}/api/users/directory${query}`);
         if (!response.ok) throw new Error("Failed to load authors");
 
@@ -136,6 +136,7 @@ const Authors = () => {
                   postsCount={author.postsCount}
                   isVerified={author.isVerified}
                   profileHref={`/profile/${author.clerkId}`}
+                  isFollowing={author.isFollowing}
                   onFollow={() => handleFollowToggle(author.clerkId)}
                 />
               ))}

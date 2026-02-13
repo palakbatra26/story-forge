@@ -12,6 +12,9 @@ interface AuthorCardProps {
   postsCount: number;
   isVerified?: boolean;
   variant?: "default" | "compact" | "inline";
+  profileHref?: string;
+  isFollowing?: boolean;
+  onFollow?: () => void;
 }
 
 const AuthorCard = ({
@@ -23,10 +26,15 @@ const AuthorCard = ({
   postsCount,
   isVerified,
   variant = "default",
+  profileHref,
+  isFollowing,
+  onFollow,
 }: AuthorCardProps) => {
+  const resolvedProfileHref = profileHref || `/profile/${username}`;
+
   if (variant === "inline") {
     return (
-      <Link to={`/author/${username}`} className="flex items-center gap-3 group">
+      <Link to={resolvedProfileHref} className="flex items-center gap-3 group">
         <Avatar className="h-10 w-10">
           <AvatarImage src={avatar} alt={name} />
           <AvatarFallback className="bg-primary/10 text-primary">
@@ -49,7 +57,7 @@ const AuthorCard = ({
   if (variant === "compact") {
     return (
       <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/50">
-        <Link to={`/author/${username}`} className="flex items-center gap-3 group">
+        <Link to={resolvedProfileHref} className="flex items-center gap-3 group">
           <Avatar className="h-11 w-11">
             <AvatarImage src={avatar} alt={name} />
             <AvatarFallback className="bg-primary/10 text-primary">
@@ -66,8 +74,8 @@ const AuthorCard = ({
             <p className="text-xs text-muted-foreground">{postsCount} posts</p>
           </div>
         </Link>
-        <Button variant="outline" size="sm" className="rounded-full">
-          Follow
+        <Button variant="outline" size="sm" className="rounded-full" onClick={onFollow}>
+          {isFollowing ? "Following" : "Follow"}
         </Button>
       </div>
     );
@@ -75,7 +83,7 @@ const AuthorCard = ({
 
   return (
     <div className="card-editorial p-6 text-center">
-      <Link to={`/author/${username}`} className="block group">
+      <Link to={resolvedProfileHref} className="block group">
         <Avatar className="h-20 w-20 mx-auto mb-4 avatar-ring">
           <AvatarImage src={avatar} alt={name} />
           <AvatarFallback className="bg-primary/10 text-primary text-xl">
@@ -107,9 +115,9 @@ const AuthorCard = ({
         </div>
       </div>
       
-      <Button variant="outline" className="w-full rounded-full">
+      <Button variant="outline" className="w-full rounded-full" onClick={onFollow}>
         <Users className="h-4 w-4 mr-2" />
-        Follow
+        {isFollowing ? "Following" : "Follow"}
       </Button>
     </div>
   );

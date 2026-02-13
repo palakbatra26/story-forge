@@ -4,36 +4,19 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Calendar,
-  CheckCircle2,
-  Clock,
-  FileClock,
-  Link as LinkIcon,
-  Save,
-  Send,
-  Sparkles,
-} from "lucide-react";
-import { useAuth, useUser } from "@clerk/clerk-react";
+import { Switch } from "@/components/ui/switch";
+import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-type WorkflowStatus =
-  | "Draft"
-  | "Scheduled"
-  | "Submitted"
-  | "Under Review"
-  | "Approved"
-  | "Published"
-  | "Archived";
+type WorkflowStatus = "Draft" | "Scheduled" | "Submitted" | "Under Review" | "Approved" | "Published" | "Archived";
 
 const workflowSteps: WorkflowStatus[] = [
   "Draft",
@@ -45,14 +28,6 @@ const workflowSteps: WorkflowStatus[] = [
   "Archived",
 ];
 
-const editorExtensions = [
-  StarterKit,
-  Placeholder.configure({ placeholder: "Start writing your story..." }),
-  Link.configure({ openOnClick: false }),
-  Image,
-];
-
-const categories = ["AI/ML", "Cyber", "Web", "Mobile", "Data", "Cloud", "DevOps"];
 const languageOptions = [
   { value: "en", label: "English" },
   { value: "hi", label: "Hindi" },
@@ -61,164 +36,144 @@ const languageOptions = [
   { value: "fr", label: "French" },
 ];
 
+const categories = ["AI/ML", "Cyber", "Web", "Mobile", "Data", "Cloud", "DevOps", "General"];
+
+const editorExtensions = [
+  StarterKit,
+  Placeholder.configure({ placeholder: "Start writing your story..." }),
+  Link.configure({ openOnClick: false }),
+  Image,
+];
+
 const Write = () => {
   const { isSignedIn } = useAuth();
   const { user } = useUser();
-  const [title, setTitle] = useState("Designing a writing workflow that scales");
-  const [subtitle, setSubtitle] = useState("From draft to archive with an editorial pipeline.");
-  const [status, setStatus] = useState<WorkflowStatus>("Published");
-  const [category, setCategory] = useState(categories[0]);
-  const [tags, setTags] = useState("editorial, workflow");
-  const [bloggerName, setBloggerName] = useState("");
-  const [timeline, setTimeline] = useState("");
+
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<WorkflowStatus>("Published");
+  const [category, setCategory] = useState("General");
+  const [tags, setTags] = useState("");
+  const [timeline, setTimeline] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [contentLanguage, setContentLanguage] = useState("hi");
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [coverImageData, setCoverImageData] = useState("");
-  const [coverPreview, setCoverPreview] = useState("");
-  const [autosaveStatus, setAutosaveStatus] = useState("Last saved just now");
-  const [scheduledAt, setScheduledAt] = useState("2026-02-14T10:30");
-  const [featuredImage, setFeaturedImage] = useState("/placeholder.svg");
-  const [gallery, setGallery] = useState([
-    "/placeholder.svg",
-    "/placeholder.svg",
-    "/placeholder.svg",
-  ]);
-  const [metaTitle, setMetaTitle] = useState("Writing Workflow | BlogHub");
-  const [metaDescription, setMetaDescription] = useState(
-    "Track drafts, approvals, and publishing schedules with rich editorial tooling.",
-  );
-  const [slug, setSlug] = useState("writing-workflow" );
-  const [canonicalUrl, setCanonicalUrl] = useState("https://bloghub.com/writing-workflow");
-  const [originalLanguage, setOriginalLanguage] = useState("en");
-  const [translationLanguage, setTranslationLanguage] = useState("hi");
-  const [translatedTitle, setTranslatedTitle] = useState("");
-  const [translatedDescription, setTranslatedDescription] = useState("");
-  const [translatedContent, setTranslatedContent] = useState("");
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(new Date());
-  const [wordCount, setWordCount] = useState(0);
+
+  const [aiSummary, setAiSummary] = useState("");
+  const [contentHtml, setContentHtml] = useState("");
+  const [translating, setTranslating] = useState(false);
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(true);
+  const [applyingAutoTranslation, setApplyingAutoTranslation] = useState(false);
+
   const [saving, setSaving] = useState(false);
-  const [lastPostId, setLastPostId] = useState<string | null>(null);
-
-  const draftStorageKey = user ? `write-draft-${user.id}` : "write-draft-guest";
-
-  useEffect(() => {
-    if (user) {
-      setBloggerName(user.fullName || user.username || "");
-    }
-  }, [user]);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(draftStorageKey);
-    if (!raw) return;
-
-    try {
-      const draft = JSON.parse(raw);
-      setTitle(draft.title || "");
-      setSubtitle(draft.subtitle || "");
-      setStatus(draft.status || "Draft");
-      setCategory(draft.category || categories[0]);
-      setTags(draft.tags || "");
-      setTimeline(draft.timeline || "");
-      setDescription(draft.description || "");
-      setCoverImageUrl(draft.coverImageUrl || "");
-      setScheduledAt(draft.scheduledAt || "");
-      setOriginalLanguage(draft.originalLanguage || "en");
-      setTranslationLanguage(draft.translationLanguage || "hi");
-      setTranslatedTitle(draft.translatedTitle || "");
-      setTranslatedDescription(draft.translatedDescription || "");
-      setTranslatedContent(draft.translatedContent || "");
-      setAudioEnabled(draft.audioEnabled !== false);
-    } catch {
-      // ignore malformed local draft
-    }
-  }, [draftStorageKey]);
 
   const editor = useEditor({
     extensions: editorExtensions,
-    content: `
-      <h2>Structure the editorial flow</h2>
-      <p>Capture every stage of your blog lifecycle—from draft to archive—so writers and editors are always aligned.</p>
-      <ul>
-        <li>Use a clear status workflow to track progress.</li>
-        <li>Schedule publishing windows and manage approvals.</li>
-        <li>Store version history for edits and revisions.</li>
-      </ul>
-    `,
+    content: "",
+    onUpdate: ({ editor: currentEditor }) => {
+      setContentHtml(currentEditor.getHTML() || "");
+    },
   });
 
-  useEffect(() => {
-    if (!editor) return;
+  const wordCount = useMemo(
+    () => editor?.getText().trim().split(/\s+/).filter(Boolean).length || 0,
+    [editor?.state]
+  );
 
-    const handler = () => {
-      const words = editor.getText().trim().split(/\s+/).filter(Boolean).length;
-      setWordCount(words);
-      setAutosaveStatus("Saving changes...");
-      setTimeout(() => {
-        setAutosaveStatus("All changes saved");
-        setLastSavedAt(new Date());
-      }, 500);
-    };
-
-    editor.on("update", handler);
-    return () => {
-      editor.off("update", handler);
-    };
-  }, [editor]);
+  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      localStorage.setItem(
-        draftStorageKey,
-        JSON.stringify({
+    if (!autoTranslateEnabled || applyingAutoTranslation) {
+      setTranslating(false);
+      return;
+    }
+
+    const hasSourceText =
+      title.trim().length > 0 || description.trim().length > 0 || editor?.getText().trim().length;
+
+    if (!hasSourceText) {
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setTranslating(true);
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/posts/ai/translate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            description,
+            content: contentHtml,
+            originalLanguage: "auto",
+            targetLanguage: contentLanguage,
+          }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || "Auto translation failed");
+
+        const nextTitle = (data?.translatedTitle || "").trim();
+        const nextDescription = (data?.translatedDescription || "").trim();
+        const nextContent = String(data?.translatedContent || "").trim();
+
+        const shouldApply =
+          (nextTitle && nextTitle !== title) ||
+          (nextDescription && nextDescription !== description) ||
+          (nextContent && nextContent !== contentHtml);
+
+        if (shouldApply) {
+          setApplyingAutoTranslation(true);
+          if (nextTitle) setTitle(nextTitle);
+          if (nextDescription) setDescription(nextDescription);
+          if (nextContent) {
+            editor?.commands.setContent(nextContent, false);
+            setContentHtml(nextContent);
+          }
+          setTimeout(() => setApplyingAutoTranslation(false), 0);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          console.warn("Auto translation unavailable:", error.message);
+        }
+      } finally {
+        setTranslating(false);
+      }
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [title, description, contentHtml, contentLanguage, editor, autoTranslateEnabled, applyingAutoTranslation]);
+
+  const handleAiSuggest = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/posts/ai/suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           title,
-          subtitle,
-          status,
-          category,
-          tags,
-          timeline,
           description,
-          coverImageUrl,
-          scheduledAt,
-          originalLanguage,
-          translationLanguage,
-          translatedTitle,
-          translatedDescription,
-          translatedContent,
-          audioEnabled,
           content: editor?.getHTML() || "",
-        })
-      );
-    }, 700);
+          originalLanguage: "auto",
+          targetLanguage: contentLanguage,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "AI suggestion failed");
 
-    return () => window.clearTimeout(timeout);
-  }, [
-    draftStorageKey,
-    title,
-    subtitle,
-    status,
-    category,
-    tags,
-    timeline,
-    description,
-    coverImageUrl,
-    scheduledAt,
-    originalLanguage,
-    translationLanguage,
-    translatedTitle,
-    translatedDescription,
-    translatedContent,
-    audioEnabled,
-    editor,
-  ]);
-
-  const readingTime = useMemo(() => {
-    return Math.max(1, Math.ceil(wordCount / 200));
-  }, [wordCount]);
+      setTitle((prev) => prev || data.suggestedTitle || "");
+      setAiSummary(data.aiSummary || "");
+      setDescription((prev) => prev || data.suggestedMetaDescription || "");
+      toast.success("AI suggestions generated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to generate AI suggestions.");
+    }
+  };
 
   const handleSave = async () => {
     if (!isSignedIn || !user) {
-      toast.error("Please sign in to publish your story.");
+      toast.error("Please sign in first.");
       return;
     }
 
@@ -227,16 +182,10 @@ const Write = () => {
       return;
     }
 
-    if (!bloggerName.trim()) {
-      toast.error("Blogger name is required.");
-      return;
-    }
-
     setSaving(true);
     try {
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
-
-      await fetch(`${baseUrl}/api/users/sync`, {
+      const response = await fetch(`${baseUrl}/api/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -245,402 +194,127 @@ const Write = () => {
           email: user.primaryEmailAddress?.emailAddress || "",
           username: user.username || "",
           avatarUrl: user.imageUrl || "",
-        }),
-      });
-
-      const response = await fetch(`${baseUrl}/api/posts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clerkId: user.id,
-          name: bloggerName.trim() || user.fullName || user.username || "Unknown",
-          email: user.primaryEmailAddress?.emailAddress || "",
           title,
+          description,
           status,
           category,
           tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
           timeline,
-          description,
-          coverImageUrl,
-          coverImageData,
           content: editor?.getHTML() || "",
           scheduledAt: status === "Scheduled" ? scheduledAt : null,
-          originalLanguage,
-          translations:
-            translatedTitle.trim() || translatedDescription.trim() || translatedContent.trim()
-              ? [
-                  {
-                    language: translationLanguage,
-                    title: translatedTitle.trim(),
-                    description: translatedDescription.trim(),
-                    content: translatedContent.trim(),
-                  },
-                ]
-              : [],
+          originalLanguage: contentLanguage,
+          translations: [],
           audioEnabled,
+          coverImageUrl,
+          coverImageData,
         }),
       });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to save post");
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Failed to publish post");
 
-      const data = await response.json();
-      setLastPostId(data.id);
-      localStorage.removeItem(draftStorageKey);
-      toast.success("Post uploaded successfully!");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unable to save post. Please try again.";
-      if (message.includes("Failed to fetch")) {
-        toast.error("Backend server is not reachable. Start API server first.");
-      } else {
-        toast.error(message);
-      }
+      toast.success("Post published successfully!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to save post.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleShare = async () => {
-    if (!lastPostId) {
-      toast.error("Upload the blog first before sharing.");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/posts/${lastPostId}/share`,
-        { method: "POST" }
-      );
-      if (!response.ok) {
-        throw new Error("Failed to share");
-      }
-      toast.success("Post shared successfully!");
-    } catch (error) {
-      toast.error("Unable to share post. Please try again.");
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 bg-background">
-        <section className="container mx-auto px-4 py-10">
-          <div className="flex flex-col gap-8">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    Blog Writing & Publishing Workflow
-                  </p>
-                  <h1 className="heading-title mt-1">Write & Publish</h1>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Button className="gap-2" onClick={handleSave} disabled={!isSignedIn || saving}>
-                    <CheckCircle2 className="h-4 w-4" />
-                    {saving ? "Uploading..." : "Upload Blog"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    disabled={!isSignedIn || !lastPostId}
-                    onClick={handleShare}
-                  >
-                    <Send className="h-4 w-4" />
-                    Share Blog
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1">
-                  <Clock className="h-4 w-4" />
-                  {autosaveStatus}
-                </span>
-                {lastSavedAt && (
-                  <span>Last saved {lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                )}
-                <span className="inline-flex items-center gap-2">
-                  <FileClock className="h-4 w-4" />
-                  {readingTime} min read · {wordCount} words
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-8">
-              <div className="flex flex-col gap-6">
-                <Card className="card-editorial">
-                  <CardHeader>
-                    <CardTitle>Story details</CardTitle>
-                    <CardDescription>Capture the essentials before moving into the editor.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="title">Title</Label>
-                      <Input
-                        id="title"
-                        value={title}
-                        onChange={(event) => setTitle(event.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="subtitle">Subtitle</Label>
-                      <Input
-                        id="subtitle"
-                        value={subtitle}
-                        onChange={(event) => setSubtitle(event.target.value)}
-                      />
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Status</Label>
-                        <Select value={status} onValueChange={(value) => setStatus(value as WorkflowStatus)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {workflowSteps.map((step) => (
-                              <SelectItem key={step} value={step}>
-                                {step}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {status === "Scheduled" && (
-                        <div className="space-y-2">
-                          <Label htmlFor="scheduledAt">Schedule for</Label>
-                          <Input
-                            id="scheduledAt"
-                            type="datetime-local"
-                            value={scheduledAt}
-                            onChange={(event) => setScheduledAt(event.target.value)}
-                          />
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <Label htmlFor="blogger">Blogger name</Label>
-                        <Input
-                          id="blogger"
-                          value={bloggerName}
-                          onChange={(event) => setBloggerName(event.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Category</Label>
-                        <Select value={category} onValueChange={setCategory}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((item) => (
-                              <SelectItem key={item} value={item}>
-                                {item}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="timeline">Timeline</Label>
-                        <Input
-                          id="timeline"
-                          placeholder="e.g. 10 min read · Feb 14, 2026"
-                          value={timeline}
-                          onChange={(event) => setTimeline(event.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Original language</Label>
-                        <Select value={originalLanguage} onValueChange={setOriginalLanguage}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select language" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {languageOptions.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center justify-between">
-                          <span>Enable audio mode (Text-to-Speech)</span>
-                          <Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} />
-                        </Label>
-                      </div>
-                    </div>
-
-                    <Card className="card-editorial">
-                      <CardHeader>
-                        <CardTitle>Multi-language translation (optional)</CardTitle>
-                        <CardDescription>
-                          Add one translated version so readers can switch language on post page.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="space-y-2">
-                          <Label>Translation language</Label>
-                          <Select value={translationLanguage} onValueChange={setTranslationLanguage}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select translation language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {languageOptions
-                                .filter((item) => item.value !== originalLanguage)
-                                .map((item) => (
-                                  <SelectItem key={item.value} value={item.value}>
-                                    {item.label}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Input
-                          placeholder="Translated title"
-                          value={translatedTitle}
-                          onChange={(event) => setTranslatedTitle(event.target.value)}
-                        />
-                        <Textarea
-                          placeholder="Translated description"
-                          value={translatedDescription}
-                          onChange={(event) => setTranslatedDescription(event.target.value)}
-                        />
-                        <Textarea
-                          placeholder="Translated content (HTML/text)"
-                          className="min-h-[140px]"
-                          value={translatedContent}
-                          onChange={(event) => setTranslatedContent(event.target.value)}
-                        />
-                      </CardContent>
-                    </Card>
-                    <Card className="card-editorial">
-                      <CardHeader>
-                        <CardTitle>Blog description</CardTitle>
-                        <CardDescription>Write the main content of your blog here.</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().toggleBold().run()}
-                          >
-                            Bold
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().toggleItalic().run()}
-                          >
-                            Italic
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                          >
-                            Bullet List
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-                          >
-                            Ordered List
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().setParagraph().run()}
-                          >
-                            Paragraph
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-                          >
-                            H2
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-                          >
-                            H3
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => editor?.chain().focus().setHorizontalRule().run()}
-                          >
-                            Divider
-                          </Button>
-                        </div>
-                        <div className="tiptap-editor">
-                          <EditorContent editor={editor} />
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <div className="space-y-2">
-                      <Label htmlFor="tags">Tags (comma separated)</Label>
-                      <Input
-                        id="tags"
-                        value={tags}
-                        onChange={(event) => setTags(event.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="coverUrl">Blog photo URL (optional)</Label>
-                      <Input
-                        id="coverUrl"
-                        placeholder="https://..."
-                        value={coverImageUrl}
-                        onChange={(event) => {
-                          const url = event.target.value;
-                          setCoverImageUrl(url);
-                          setCoverPreview(url);
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="coverUpload">Upload blog photo (optional)</Label>
-                      <Input
-                        id="coverUpload"
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => {
-                            const result = reader.result?.toString() || "";
-                            setCoverImageData(result);
-                            setCoverPreview(result);
-                          };
-                          reader.readAsDataURL(file);
-                        }}
-                      />
-                    </div>
-                    {coverPreview && (
-                      <div className="space-y-2">
-                        <Label>Photo preview</Label>
-                        <img
-                          src={coverPreview}
-                          alt="Blog preview"
-                          className="h-40 w-full rounded-md object-cover border"
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+      <main className="flex-1">
+        <section className="container mx-auto px-4 py-10 space-y-6">
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="heading-title">Write & Publish</h1>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleAiSuggest} className="gap-2">
+                <Sparkles className="h-4 w-4" /> AI Suggest
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Publish"}</Button>
             </div>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Story Basics</CardTitle>
+              <CardDescription>{readingTime} min read · {wordCount} words</CardDescription>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-2 gap-3">
+              <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Select value={status} onValueChange={(v) => setStatus(v as WorkflowStatus)}>
+                <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>{workflowSteps.map((step) => <SelectItem key={step} value={step}>{step}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                <SelectContent>{categories.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+              </Select>
+              <Input placeholder="Tags (comma separated)" value={tags} onChange={(e) => setTags(e.target.value)} />
+              <Input placeholder="Timeline (e.g. 8 min read)" value={timeline} onChange={(e) => setTimeline(e.target.value)} />
+              {status === "Scheduled" && (
+                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+              )}
+              <Input placeholder="Cover image URL" value={coverImageUrl} onChange={(e) => setCoverImageUrl(e.target.value)} />
+              <div className="md:col-span-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setCoverImageData(reader.result?.toString() || "");
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Language & Accessibility</CardTitle></CardHeader>
+            <CardContent className="grid md:grid-cols-2 gap-3">
+              <Select value={contentLanguage} onValueChange={setContentLanguage}>
+                <SelectTrigger><SelectValue placeholder="Content language" /></SelectTrigger>
+                <SelectContent>{languageOptions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+              </Select>
+              <Label className="flex items-center justify-between border rounded-md px-3 py-2">
+                <span>Enable audio mode</span>
+                <Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} />
+              </Label>
+
+              <Label className="flex items-center justify-between border rounded-md px-3 py-2">
+                <span>Auto-translate</span>
+                <Switch checked={autoTranslateEnabled} onCheckedChange={setAutoTranslateEnabled} />
+              </Label>
+              <p className="md:col-span-2 text-sm text-muted-foreground">
+                {translating
+                  ? `Auto-translating content to ${languageOptions.find((item) => item.value === contentLanguage)?.label || contentLanguage}...`
+                  : "Selected language mein content automatically update hoga."}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>AI Summary</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {aiSummary || "AI Suggest pe click karo, yaha short summary show hogi."}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Content Editor</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="tiptap-editor">
+                <EditorContent editor={editor} />
+              </div>
+            </CardContent>
+          </Card>
         </section>
       </main>
       <Footer />

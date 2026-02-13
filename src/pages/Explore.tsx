@@ -58,6 +58,20 @@ type CommentItem = {
 };
 
 const categories = ["All", "AI/ML", "Cyber", "Web", "Mobile", "Data", "Cloud", "DevOps", "General"];
+const exploreLanguages = [
+  { value: "en", label: "English" },
+  { value: "hi", label: "Hindi" },
+  { value: "pa", label: "Punjabi" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+];
+
+type TranslatedPreview = {
+  translatedTitle: string;
+  translatedDescription: string;
+  translatedContent: string;
+  loading?: boolean;
+};
 
 const Explore = () => {
   const { isSignedIn } = useAuth();
@@ -74,6 +88,8 @@ const Explore = () => {
   const [sortBy, setSortBy] = useState<"latest" | "trending">("latest");
   const [tagFilter, setTagFilter] = useState("");
   const [feedMode, setFeedMode] = useState<"all" | "following">("all");
+  const [exploreLanguage, setExploreLanguage] = useState("hi");
+  const [translatedByPost, setTranslatedByPost] = useState<Record<string, TranslatedPreview>>({});
 
   const filteredPosts = useMemo(() => {
     if (activeCategory === "All") return posts;
@@ -95,34 +111,25 @@ const Explore = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    const syncUser = async () => {
-      if (!isSignedIn || !user) return;
-      try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL;
-        await fetch(`${baseUrl}/api/users/sync`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            clerkId: user.id,
-            name: user.fullName || user.username || "",
-            email: user.primaryEmailAddress?.emailAddress || "",
-            username: user.username || "",
-            avatarUrl: user.imageUrl || "",
-          }),
-        });
-      } catch {
-        // no-op
-      }
-    };
-
-    syncUser();
-  }, [isSignedIn, user]);
-
-  useEffect(() => {
     const fetchPosts = async () => {
       setLoading(true);
       try {
         const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
+        if (isSignedIn && user) {
+          await fetch(`${baseUrl}/api/users/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clerkId: user.id,
+              name: user.fullName || user.username || "",
+              email: user.primaryEmailAddress?.emailAddress || "",
+              username: user.username || "",
+              avatarUrl: user.imageUrl || "",
+            }),
+          });
+        }
+
         const params = new URLSearchParams();
 
         if (user?.id) params.set("viewerClerkId", user.id);
@@ -150,7 +157,7 @@ const Explore = () => {
     };
 
     fetchPosts();
-  }, [activeCategory, user?.id, searchTerm, tagFilter, sortBy, feedMode]);
+  }, [activeCategory, isSignedIn, user, user?.id, searchTerm, tagFilter, sortBy, feedMode]);
 
   const handleBookmarkToggle = async (postId: string) => {
     if (!isSignedIn || !user) {
@@ -389,6 +396,60 @@ const Explore = () => {
     }
   };
 
+  const handleTranslatePreview = async (post: PostSummary) => {
+    if (!exploreLanguage) return;
+
+    setTranslatedByPost((prev) => ({
+      ...prev,
+      [post.id]: {
+        translatedTitle: prev[post.id]?.translatedTitle || "",
+        translatedDescription: prev[post.id]?.translatedDescription || "",
+        translatedContent: prev[post.id]?.translatedContent || "",
+        loading: true,
+      },
+    }));
+
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const response = await fetch(`${baseUrl}/api/posts/ai/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: post.title,
+          description: post.description,
+          content: post.content,
+          originalLanguage: "auto",
+          targetLanguage: exploreLanguage,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Translation failed");
+
+      setTranslatedByPost((prev) => ({
+        ...prev,
+        [post.id]: {
+          translatedTitle: data?.translatedTitle || post.title,
+          translatedDescription: data?.translatedDescription || post.description,
+          translatedContent: data?.translatedContent || post.content,
+          loading: false,
+        },
+      }));
+      toast.success("Preview translated");
+    } catch (error) {
+      setTranslatedByPost((prev) => ({
+        ...prev,
+        [post.id]: {
+          translatedTitle: post.title,
+          translatedDescription: post.description,
+          translatedContent: post.content,
+          loading: false,
+        },
+      }));
+      toast.error(error instanceof Error ? error.message : "Unable to translate preview");
+    }
+  };
+
   const handleRepost = async (postId: string) => {
     if (!isSignedIn || !user) {
       toast.error("Please sign in to repost.");
@@ -559,6 +620,24 @@ const Explore = () => {
               </Select>
             </div>
 
+            <div className="grid gap-3 md:grid-cols-3">
+              <Select value={exploreLanguage} onValueChange={setExploreLanguage}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Preview language" />
+                </SelectTrigger>
+                <SelectContent>
+                  {exploreLanguages.map((language) => (
+                    <SelectItem key={language.value} value={language.value}>
+                      {language.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="md:col-span-2 text-xs text-muted-foreground border rounded-md px-3 py-2">
+                Auto-translate typing system <strong>Write</strong> page pe hai. Explore me ab <strong>Translate preview</strong> se per-post translation dekh sakte ho.
+              </p>
+            </div>
+
             {loading ? (
               <p className="text-muted-foreground">Loading posts...</p>
             ) : filteredPosts.length === 0 ? (
@@ -571,7 +650,9 @@ const Explore = () => {
                       {post.isRepost && post.repostedBy && (
                         <p className="text-xs text-muted-foreground">🔁 Reposted by {post.repostedBy.name}</p>
                       )}
-                      <CardTitle>{post.title}</CardTitle>
+                      <CardTitle>
+                        {translatedByPost[post.id]?.translatedTitle || post.title}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm text-muted-foreground">
                       {post.coverImageUrl && (
@@ -581,7 +662,11 @@ const Explore = () => {
                           className="h-40 w-full rounded-md object-cover border"
                         />
                       )}
-                      {post.description && <p className="text-foreground/90">{post.description}</p>}
+                      {(translatedByPost[post.id]?.translatedDescription || post.description) && (
+                        <p className="text-foreground/90">
+                          {translatedByPost[post.id]?.translatedDescription || post.description}
+                        </p>
+                      )}
                       <div className="flex flex-wrap gap-2">
                         {post.category && (
                           <span className="rounded-full bg-secondary px-3 py-1 text-xs">
@@ -614,6 +699,16 @@ const Explore = () => {
                       <p>Status: {post.status}</p>
                       <p>{new Date(post.createdAt).toLocaleDateString()}</p>
                       <div className="flex flex-wrap gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTranslatePreview(post)}
+                          disabled={!!translatedByPost[post.id]?.loading}
+                        >
+                          {translatedByPost[post.id]?.loading
+                            ? "Translating..."
+                            : `🌐 Translate (${exploreLanguages.find((item) => item.value === exploreLanguage)?.label || exploreLanguage})`}
+                        </Button>
                         <Button size="sm" variant="secondary" asChild>
                           <Link to={`/post/${post.id}`}>📖 Read</Link>
                         </Button>
