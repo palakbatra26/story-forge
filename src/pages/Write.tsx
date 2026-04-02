@@ -17,6 +17,27 @@ import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type WorkflowStatus = "Draft" | "Scheduled" | "Submitted" | "Under Review" | "Approved" | "Published" | "Archived";
+type TranslationStatus = "Draft" | "Translated" | "Reviewed" | "Published";
+
+type TranslationWorkflowItem = {
+  language: string;
+  status: TranslationStatus;
+};
+
+type CollaborationPresence = {
+  clerkId: string;
+  name: string;
+  cursor?: string;
+  section?: string;
+  lastSeenAt?: string;
+};
+
+type CoachPayload = {
+  readabilityScore: number;
+  tone: string;
+  suggestions: string[];
+  improvedIntro: string;
+};
 
 const workflowSteps: WorkflowStatus[] = [
   "Draft",
@@ -28,12 +49,20 @@ const workflowSteps: WorkflowStatus[] = [
   "Archived",
 ];
 
+const translationStatuses: TranslationStatus[] = ["Draft", "Translated", "Reviewed", "Published"];
+
 const languageOptions = [
   { value: "en", label: "English" },
   { value: "hi", label: "Hindi" },
   { value: "pa", label: "Punjabi" },
   { value: "es", label: "Spanish" },
   { value: "fr", label: "French" },
+];
+
+const collaboratorRoleOptions = [
+  { value: "editor", label: "Editor" },
+  { value: "translator", label: "Translator" },
+  { value: "reviewer", label: "Reviewer" },
 ];
 
 const categories = ["AI/ML", "Cyber", "Web", "Mobile", "Data", "Cloud", "DevOps", "General"];
@@ -67,6 +96,18 @@ const Write = () => {
   const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(true);
   const [applyingAutoTranslation, setApplyingAutoTranslation] = useState(false);
 
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [coach, setCoach] = useState<CoachPayload | null>(null);
+
+  const [targetLanguage, setTargetLanguage] = useState("en");
+  const [translationWorkflows, setTranslationWorkflows] = useState<TranslationWorkflowItem[]>([]);
+
+  const [collaboratorClerkIds, setCollaboratorClerkIds] = useState("");
+  const [collaboratorRole, setCollaboratorRole] = useState("editor");
+  const [savedPostId, setSavedPostId] = useState("");
+  const [activeCollaborators, setActiveCollaborators] = useState<CollaborationPresence[]>([]);
+  const [collabSyncing, setCollabSyncing] = useState(false);
+
   const [saving, setSaving] = useState(false);
 
   const editor = useEditor({
@@ -93,9 +134,7 @@ const Write = () => {
     const hasSourceText =
       title.trim().length > 0 || description.trim().length > 0 || editor?.getText().trim().length;
 
-    if (!hasSourceText) {
-      return;
-    }
+    if (!hasSourceText) return;
 
     const timer = setTimeout(async () => {
       try {
@@ -146,6 +185,122 @@ const Write = () => {
     return () => clearTimeout(timer);
   }, [title, description, contentHtml, contentLanguage, editor, autoTranslateEnabled, applyingAutoTranslation]);
 
+  useEffect(() => {
+    const shouldCoach =
+      title.trim().length > 0 || description.trim().length > 0 || stripHtml(contentHtml).length > 80;
+    if (!shouldCoach) {
+      setCoach(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setCoachLoading(true);
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/posts/ai/coach`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            description,
+            content: contentHtml,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || "Coach is unavailable");
+
+        setCoach({
+          readabilityScore: Number(data?.readabilityScore) || 0,
+          tone: String(data?.tone || "balanced"),
+          suggestions: Array.isArray(data?.suggestions)
+            ? data.suggestions.map((item: unknown) => String(item)).slice(0, 5)
+            : [],
+          improvedIntro: String(data?.improvedIntro || ""),
+        });
+      } catch {
+        // silent fallback
+      } finally {
+        setCoachLoading(false);
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [title, description, contentHtml]);
+
+  useEffect(() => {
+    if (!savedPostId || !user?.id) return;
+
+    const syncPresence = async () => {
+      try {
+        setCollabSyncing(true);
+        const baseUrl = import.meta.env.VITE_API_BASE_URL;
+        const response = await fetch(`${baseUrl}/api/posts/${savedPostId}/collab/presence`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clerkId: user.id,
+            name: user.fullName || user.username || "Writer",
+            cursor: `Title:${title.length} Content:${stripHtml(contentHtml).split(/\s+/).filter(Boolean).length}w`,
+            section: "write-editor",
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (response.ok) {
+          setActiveCollaborators(Array.isArray(payload?.activeCollaborators) ? payload.activeCollaborators : []);
+        }
+      } finally {
+        setCollabSyncing(false);
+      }
+    };
+
+    const fetchPresence = async () => {
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL;
+        const response = await fetch(`${baseUrl}/api/posts/${savedPostId}/collab/presence`);
+        const payload = await response.json().catch(() => ({}));
+        if (response.ok) {
+          setActiveCollaborators(Array.isArray(payload?.activeCollaborators) ? payload.activeCollaborators : []);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    void syncPresence();
+    void fetchPresence();
+    const interval = setInterval(() => {
+      void syncPresence();
+      void fetchPresence();
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [savedPostId, user?.id, user?.fullName, user?.username, title, contentHtml]);
+
+  const addWorkflowLanguage = () => {
+    if (!targetLanguage || targetLanguage === contentLanguage) {
+      toast.error("Target language original language se alag select karo.");
+      return;
+    }
+
+    const exists = translationWorkflows.some((item) => item.language === targetLanguage);
+    if (exists) {
+      toast.error("Workflow already added for this language.");
+      return;
+    }
+
+    setTranslationWorkflows((prev) => [...prev, { language: targetLanguage, status: "Draft" }]);
+  };
+
+  const updateWorkflowStatus = (language: string, nextStatus: TranslationStatus) => {
+    setTranslationWorkflows((prev) =>
+      prev.map((item) => (item.language === language ? { ...item, status: nextStatus } : item))
+    );
+  };
+
+  const removeWorkflowLanguage = (language: string) => {
+    setTranslationWorkflows((prev) => prev.filter((item) => item.language !== language));
+  };
+
   const handleAiSuggest = async () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/posts/ai/suggest`, {
@@ -185,6 +340,23 @@ const Write = () => {
     setSaving(true);
     try {
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const collaboratorPayload = collaboratorClerkIds
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((clerkId) => ({
+          clerkId,
+          role: collaboratorRole,
+        }));
+
+      const translationPayload = translationWorkflows.map((item) => ({
+        language: item.language,
+        title: "",
+        description: "",
+        content: "",
+        status: item.status,
+      }));
+
       const response = await fetch(`${baseUrl}/api/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -203,7 +375,8 @@ const Write = () => {
           content: editor?.getHTML() || "",
           scheduledAt: status === "Scheduled" ? scheduledAt : null,
           originalLanguage: contentLanguage,
-          translations: [],
+          translations: translationPayload,
+          collaborators: collaboratorPayload,
           audioEnabled,
           coverImageUrl,
           coverImageData,
@@ -213,6 +386,7 @@ const Write = () => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || "Failed to publish post");
 
+      setSavedPostId(String(data?.id || ""));
       toast.success("Post published successfully!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to save post.");
@@ -239,7 +413,7 @@ const Write = () => {
           <Card>
             <CardHeader>
               <CardTitle>Story Basics</CardTitle>
-              <CardDescription>{readingTime} min read · {wordCount} words</CardDescription>
+              <CardDescription>{readingTime} min read | {wordCount} words</CardDescription>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-3">
               <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -293,8 +467,118 @@ const Write = () => {
               <p className="md:col-span-2 text-sm text-muted-foreground">
                 {translating
                   ? `Auto-translating content to ${languageOptions.find((item) => item.value === contentLanguage)?.label || contentLanguage}...`
-                  : "Selected language mein content automatically update hoga."}
+                  : "Selected language ke liye content auto-adjust hoga."}
               </p>
+
+              <div className="md:col-span-2 border rounded-md p-3 space-y-3">
+                <p className="font-medium">Multi-language Workflow</p>
+                <div className="flex flex-wrap gap-2">
+                  <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+                    <SelectTrigger className="w-[220px]"><SelectValue placeholder="Target language" /></SelectTrigger>
+                    <SelectContent>
+                      {languageOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" onClick={addWorkflowLanguage}>Add Workflow</Button>
+                </div>
+                {translationWorkflows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No target languages added yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {translationWorkflows.map((item) => (
+                      <div key={item.language} className="flex flex-wrap items-center gap-2 border rounded-md p-2">
+                        <span className="text-sm min-w-[120px]">
+                          {languageOptions.find((lang) => lang.value === item.language)?.label || item.language}
+                        </span>
+                        <Select value={item.status} onValueChange={(value) => updateWorkflowStatus(item.language, value as TranslationStatus)}>
+                          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                          <SelectContent>
+                            {translationStatuses.map((statusOption) => (
+                              <SelectItem key={statusOption} value={statusOption}>{statusOption}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button type="button" variant="ghost" onClick={() => removeWorkflowLanguage(item.language)}>
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Collaboration</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                placeholder="Collaborator Clerk IDs (comma separated)"
+                value={collaboratorClerkIds}
+                onChange={(e) => setCollaboratorClerkIds(e.target.value)}
+              />
+              <Select value={collaboratorRole} onValueChange={setCollaboratorRole}>
+                <SelectTrigger className="w-[220px]"><SelectValue placeholder="Collaborator role" /></SelectTrigger>
+                <SelectContent>
+                  {collaboratorRoleOptions.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Publish ke baad post collaboration heartbeat start hoga. Post ID: {savedPostId || "not created yet"}
+              </p>
+              {!!savedPostId && (
+                <div className="rounded-md border p-3">
+                  <p className="font-medium">Active collaborators {collabSyncing ? "(syncing...)" : ""}</p>
+                  {activeCollaborators.length === 0 ? (
+                    <p className="text-sm text-muted-foreground mt-1">No active collaborators right now.</p>
+                  ) : (
+                    <div className="mt-2 space-y-1">
+                      {activeCollaborators.map((item) => (
+                        <p key={item.clerkId} className="text-sm">
+                          {item.name || item.clerkId} | {item.section || "content"} | {item.cursor || ""}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>AI Writing Coach</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {coachLoading ? (
+                <p className="text-sm text-muted-foreground">Analyzing writing...</p>
+              ) : !coach ? (
+                <p className="text-sm text-muted-foreground">Start writing to get inline coaching suggestions.</p>
+              ) : (
+                <>
+                  <p className="text-sm"><b>Readability:</b> {coach.readabilityScore}/100</p>
+                  <p className="text-sm"><b>Tone:</b> {coach.tone}</p>
+                  <div className="text-sm">
+                    <b>Suggestions:</b>
+                    {(coach.suggestions || []).length === 0 ? (
+                      <p className="text-muted-foreground mt-1">No suggestions right now.</p>
+                    ) : (
+                      <div className="mt-1 space-y-1">
+                        {coach.suggestions.map((item, index) => (
+                          <p key={`${item}-${index}`}>- {item}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {coach.improvedIntro && (
+                    <div className="rounded-md border p-2 bg-secondary/30">
+                      <p className="text-sm"><b>Suggested Intro:</b> {coach.improvedIntro}</p>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -321,5 +605,11 @@ const Write = () => {
     </div>
   );
 };
+
+const stripHtml = (value = "") =>
+  String(value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 export default Write;

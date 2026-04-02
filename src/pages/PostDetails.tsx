@@ -17,6 +17,12 @@ type Poll = {
   options: Array<{ id: string; text: string; votes: number; votedByClerkIds: string[] }>;
 };
 
+type TranslationPayload = {
+  translatedTitle: string;
+  translatedDescription: string;
+  translatedContent: string;
+};
+
 type PostDetail = {
   id: string;
   title: string;
@@ -63,6 +69,8 @@ const PostDetails = () => {
   const [post, setPost] = useState<PostDetail | null>(null);
   const [recommendations, setRecommendations] = useState<PostDetail[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState("en");
+  const [dynamicTranslations, setDynamicTranslations] = useState<Record<string, TranslationPayload>>({});
+  const [isTranslating, setIsTranslating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [fontScale, setFontScale] = useState(100);
@@ -73,13 +81,14 @@ const PostDetails = () => {
 
   const contentStyle = useMemo(() => ({ fontSize: `${fontScale}%` }), [fontScale]);
 
+  const originalLanguage = post?.originalLanguage || "en";
+
   const fetchPost = async () => {
     if (!postId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (user?.id) params.set("viewerClerkId", user.id);
-      if (selectedLanguage) params.set("language", selectedLanguage);
 
       const response = await fetch(
         `${import.meta.env.VITE_API_BASE_URL}/api/posts/${postId}?${params.toString()}`
@@ -87,7 +96,8 @@ const PostDetails = () => {
       if (!response.ok) throw new Error("Failed to fetch post");
       const data = await response.json();
       setPost(data);
-      if (!selectedLanguage) setSelectedLanguage(data.originalLanguage || "en");
+      setDynamicTranslations({});
+      setSelectedLanguage(data.originalLanguage || "en");
     } catch {
       setPost(null);
     } finally {
@@ -95,10 +105,48 @@ const PostDetails = () => {
     }
   };
 
+  const translateOnDemand = async (targetLanguage: string) => {
+    if (!post || !targetLanguage || targetLanguage === originalLanguage) return;
+
+    const existingTranslation = (post.translations || []).find((item) => item.language === targetLanguage);
+    if (existingTranslation || dynamicTranslations[targetLanguage]) return;
+
+    setIsTranslating(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/posts/ai/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: post.title,
+          description: post.description,
+          content: post.content,
+          originalLanguage,
+          targetLanguage,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Unable to translate content");
+
+      setDynamicTranslations((prev) => ({
+        ...prev,
+        [targetLanguage]: {
+          translatedTitle: String(data?.translatedTitle || post.title).trim(),
+          translatedDescription: String(data?.translatedDescription || post.description).trim(),
+          translatedContent: String(data?.translatedContent || post.content).trim(),
+        },
+      }));
+      toast.success("Translation ready");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to translate");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   useEffect(() => {
     fetchPost();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId, user?.id, selectedLanguage]);
+  }, [postId, user?.id]);
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -131,9 +179,51 @@ const PostDetails = () => {
     markRead();
   }, [postId, user?.id]);
 
+  const localizedPost = useMemo(() => {
+    if (!post) {
+      return {
+        title: "",
+        description: "",
+        content: "",
+      };
+    }
+
+    if (!selectedLanguage || selectedLanguage === originalLanguage) {
+      return {
+        title: post.title,
+        description: post.description,
+        content: post.content,
+      };
+    }
+
+    const stored = (post.translations || []).find((item) => item.language === selectedLanguage);
+    if (stored) {
+      return {
+        title: stored.title || post.title,
+        description: stored.description || post.description,
+        content: stored.content || post.content,
+      };
+    }
+
+    const dynamic = dynamicTranslations[selectedLanguage];
+    if (dynamic) {
+      return {
+        title: dynamic.translatedTitle || post.title,
+        description: dynamic.translatedDescription || post.description,
+        content: dynamic.translatedContent || post.content,
+      };
+    }
+
+    return {
+      title: post.title,
+      description: post.description,
+      content: post.content,
+    };
+  }, [post, selectedLanguage, originalLanguage, dynamicTranslations]);
+
   const readAloud = () => {
     if (!post) return;
-    const text = `${post.title}. ${post.description}. ${(post.content || "").replace(/<[^>]*>/g, " ")}`;
+    const text = `${localizedPost.title}. ${localizedPost.description}. ${(localizedPost.content || "").replace(/<[^>]*>/g, " ")}`;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = selectedLanguage || post.originalLanguage || "en";
     utterance.onend = () => setIsSpeaking(false);
@@ -232,7 +322,7 @@ const PostDetails = () => {
             <div className="space-y-6">
               <Card>
                 <CardHeader className="space-y-2">
-                  <CardTitle className="text-3xl">{post.title}</CardTitle>
+                  <CardTitle className="text-3xl">{localizedPost.title}</CardTitle>
                   <p className="text-sm text-muted-foreground">
                     By{" "}
                     {post.author?.clerkId ? (
@@ -248,7 +338,7 @@ const PostDetails = () => {
                     {" · "}
                     {new Date(post.createdAt).toLocaleDateString()}
                     {" · "}
-                    👀 {post.views || 0}
+                    Views: {post.views || 0}
                   </p>
                   {post.series?.seriesTitle && (
                     <p className="text-xs text-muted-foreground">
@@ -256,13 +346,20 @@ const PostDetails = () => {
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <Select value={selectedLanguage || post.originalLanguage || "en"} onValueChange={setSelectedLanguage}>
-                      <SelectTrigger className="w-[180px]"><SelectValue placeholder="Language" /></SelectTrigger>
+                    <Select
+                      value={selectedLanguage || post.originalLanguage || "en"}
+                      onValueChange={(nextLanguage) => {
+                        setSelectedLanguage(nextLanguage);
+                        void translateOnDemand(nextLanguage);
+                      }}
+                    >
+                      <SelectTrigger className="w-[220px]"><SelectValue placeholder="Language" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={post.originalLanguage || "en"}>Original</SelectItem>
-                        {(post.translations || []).map((t) => (
-                          <SelectItem key={t.language} value={t.language}>
-                            {languageOptions.find((l) => l.value === t.language)?.label || t.language}
+                        {languageOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.value === originalLanguage
+                              ? `${option.label} (Original)`
+                              : option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -288,10 +385,13 @@ const PostDetails = () => {
                       </>
                     )}
                   </div>
+                  {isTranslating && (
+                    <p className="text-xs text-muted-foreground">Translating content...</p>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {post.coverImageUrl && <img src={post.coverImageUrl} alt={post.title} className="w-full max-h-[420px] rounded-lg object-cover" />}
-                  {post.description && <p className="text-lg text-muted-foreground">{post.description}</p>}
+                  {post.coverImageUrl && <img src={post.coverImageUrl} alt={localizedPost.title} className="w-full max-h-[420px] rounded-lg object-cover" />}
+                  {localizedPost.description && <p className="text-lg text-muted-foreground">{localizedPost.description}</p>}
 
                   <div className="rounded-md border p-3 bg-secondary/20 text-sm">
                     <p><b>AI Summary:</b> {post.aiSummary || "Not available"}</p>
@@ -299,7 +399,7 @@ const PostDetails = () => {
                     {post.seo?.slug && <p className="mt-1"><b>Slug:</b> {post.seo.slug}</p>}
                   </div>
 
-                  <article style={contentStyle} className="prose prose-neutral max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: post.content || "" }} />
+                  <article style={contentStyle} className="prose prose-neutral max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: localizedPost.content || "" }} />
                 </CardContent>
               </Card>
 
@@ -376,7 +476,7 @@ const PostDetails = () => {
                         </div>
 
                         {(ama.questions || []).map((q) => (
-                          <p key={q.id} className="text-sm">• <b>{q.askedByName}:</b> {q.question}</p>
+                          <p key={q.id} className="text-sm">- <b>{q.askedByName}:</b> {q.question}</p>
                         ))}
                       </div>
                     ))}
@@ -412,3 +512,4 @@ const PostDetails = () => {
 };
 
 export default PostDetails;
+
